@@ -2,8 +2,8 @@ from machine import Pin
 from machine import PWM
 print('salidas')
 caldera = Pin(13, Pin.OUT, value=0)
-valvula_calefaccion=Pin(16, Pin.OUT, value=0)
-valvula_acs=Pin(14,Pin.OUT, value=0)
+valvula_calefaccion=Pin(14, Pin.OUT, value=0)
+valvula_acs=Pin(16,Pin.OUT, value=0)
 ventilador = PWM(Pin(12), freq=20, duty=0)
 caudal_ACS=Pin(15,Pin.IN)
 
@@ -44,3 +44,4 @@ def calcula_pwm(ta,tr,td,tr_min,tr_max,t_dif):
     else:
         print(f'pwm={str(vpr)}')
         return vpr
+    #fin modulo
