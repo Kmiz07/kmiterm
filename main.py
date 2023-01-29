@@ -2,7 +2,7 @@ import configuracion,wifi,temperatura, utime, ure, usocket, errno
 tiempo_ACS_OFF= utime.time()#Puntero de tiempo para tiempo que no se usa acs
 time_valvula= utime.time()#Puntero de tiempo para cierre de valvulas
 estado_valvula=1# 1>>Radiador+Sanitaria, 0>>Sanitaria solo
-periodo_valvula_on=8#tiempo que se mantiene el rele de valvula en marcha
+periodo_valvula_on=10#tiempo que se mantiene el rele de valvula en marcha
 auto_ACS_OFF = False#puntero que marca si acs se apagara automaticamente tras no usarse durante un tiempo desde tiempo_ACS_OFF
 tiempo_ACS_MAX = 600
 bloqueo_encendido = False#puntero para control de termostato
@@ -25,6 +25,7 @@ diferencia_maxima=configuracion.diferencia_maxima
 import Salidas
 Salidas.abre_valvula_acs()
 valvulas_on=True#Puntero que define si algun rele de valvula esta activado
+estado_valvula=0
 IP_dispositivo,ipserver=wifi.main() 
 def estadoSocket(socket):
     ssocket= str(socket)
@@ -113,7 +114,7 @@ def procesa_comando(linea):
         else:
             Salidas.abre_valvula_calefaccion()
         valvulas_on=True
-        time_valvula=utime.time()
+        
     if comando==b'temp_requerida':
         temperatura_demandada=round(float(valor))
     if comando==b'ACS':
@@ -144,8 +145,8 @@ conexion=conectar(dir_server)
 
 configuracion.limpia_memoria(True)
 # ------------------------------------INICIO BUCLE PROGRAMA---------------------------------------------------------------
-while True:#comprobacion de reles de valvula para que paren una vez la valvula termino de abrir (8 seg)
-    if valvulas_on and utime.time()-8 > time_valvula:
+while True:#comprobacion de reles de valvula para que paren una vez la valvula termino de abrir (periodo_valvula_on)
+    if valvulas_on and utime.time()-periodo_valvula_on > time_valvula:
         Salidas.cierra_valvulas()
         valvulas_on=False
 #Procesamos los posibles comandos llegados desde el mando        
@@ -176,17 +177,24 @@ while True:#comprobacion de reles de valvula para que paren una vez la valvula t
     configuracion.limpia_memoria(True) 
     puntero_caldera= False    
     if modo_calefaccion:
- 
+        if Salidas.caudal_ACS.value()==1 and valvulas_on == False:
+            Salidas.abre_valvula_acs()
+            estado_valvula=0
+            valvulas_on= True
+            time_valvula=utime.time()
+            
+            
         if temperatura_demandada > round(resultado.get('Ambiente')):
             if bloqueo_apagado:
                 temperatura_demandada+=1
                 bloqueo_apagado=False
-            bloqueo_encendido=True
+                bloqueo_encendido=True
             puntero_caldera=True
-            if estado_valvula == 0 and valvulas_on == False:
+            if estado_valvula == 0 and valvulas_on == False and Salidas.caudal_ACS.value()==0:#si la valvula esta en ACS y esta parada....
                 Salidas.abre_valvula_calefaccion()
                 estado_valvula=1
                 valvulas_on= True
+                time_valvula=utime.time()
 #             valor_pwm = Salidas.calcula_pwm(resultado.get('Ambiente'),resultado.get('Radiador'),temperatura_demandada,minimo_radiador,maximo_radiador,diferencia_maxima)
 #             if valor_pwm > 0 and valor_pwm <= 200: valor_pwm = 200 #salta de 0 a 200 (aprox. un 20%)
 #             Salidas.ventilador.duty(valor_pwm)
@@ -194,10 +202,11 @@ while True:#comprobacion de reles de valvula para que paren una vez la valvula t
 #             if estadoSocket(conexion) == '3':
 #                 conexion.send(bytes('valor_pwm/'+str(valor_pwm_send)+'\n',"UTF-8"))
         else:
-            if estado_valvula == 1 and valvulas_on == False:
+            if estado_valvula == 1 and valvulas_on == False:#si estado de valvula es radiador y esta parada....
                 Salidas.abre_valvula_acs()
                 estado_valvula=0
                 valvulas_on= True
+                time_valvula=utime.time()
             if bloqueo_encendido:
                 temperatura_demandada-=1
                 bloqueo_encendido= False
